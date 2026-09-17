@@ -18,7 +18,11 @@ return new class extends Migration
             $table->string('telefono', 10);
             $table->string('correo')->unique();
             $table->string('password');
-            $table->enum('rol', ['administrador', 'usuario'])->default('usuario');
+            $table->string('profesion')->default('Administrador')->nullable();
+            $table->string('ubicacion')->nullable();
+            $table->string('foto')->nullable();
+            $table->decimal('latitud', 10, 8)->nullable();
+            $table->decimal('longitud', 11, 8)->nullable();
             $table->timestamps();
         });
 

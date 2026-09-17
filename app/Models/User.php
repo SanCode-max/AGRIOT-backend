@@ -16,7 +16,6 @@ class User extends Authenticatable
         'telefono',
         'correo',
         'password',
-        'rol',
     ];
 
     protected $hidden = [
@@ -29,5 +28,10 @@ class User extends Authenticatable
         return [
             'password' => 'hashed',
         ];
+    }
+
+    public function routeNotificationForMail($notification)
+    {
+        return $this->correo;
     }
 }
