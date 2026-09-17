@@ -27,7 +27,7 @@ class RestablecerPasswordNotification extends Notification
     public function toMail(object $notifiable): MailMessage
     {
         // URL de tu formulario en React donde el usuario ingresará la nueva clave
-        $urlFrontend = env('FRONTEND_URL', 'http://localhost:3000') 
+        $urlFrontend = env('FRONTEND_URL', 'https://frontend-agriot.vercel.app') 
             . '/restablecer-password?token=' . $this->token 
             . '&correo=' . urlencode($this->correo);
 
