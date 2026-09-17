@@ -12,3 +12,6 @@ Route::get('/perfil/{correo}', [PerfilControlador::class, 'obtenerPerfil'])->whe
 Route::put('/perfil/{correo}', [PerfilControlador::class, 'actualizarPerfil'])->where('correo', '.*');
 Route::post('/perfil/foto/{correo}', [PerfilControlador::class, 'actualizarFoto'])->where('correo', '.*');
 Route::delete('/perfil/{correo}', [PerfilControlador::class, 'eliminarCuenta'])->where('correo', '.*');
+Route::get('/ping', function () {
+    return response()->json(['status' => 'active', 'message' => 'AgrIoT Backend Live']);
+});
