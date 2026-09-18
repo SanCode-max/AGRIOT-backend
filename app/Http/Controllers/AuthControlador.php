@@ -7,6 +7,7 @@ use App\Notifications\RestablecerPasswordNotification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 
@@ -131,16 +132,45 @@ class AuthControlador extends Controller
                 ]
             );
 
-            // Enviar la notificación
-            $usuario->notify(new RestablecerPasswordNotification($token, $request->correo));
+            $urlFrontend = env('FRONTEND_URL', 'https://frontend-agriot.vercel.app') 
+                . '/restablecer-password?token=' . $token 
+                . '&correo=' . urlencode($request->correo);
+
+            // Envío directo mediante la API HTTP de Brevo (Puerto 443 - Inmune a bloqueos)
+            $response = Http::withHeaders([
+                'api-key' => env('BREVO_API_KEY'),
+                'accept' => 'application/json',
+                'content-type' => 'application/json',
+            ])->post('https://api.brevo.com/v3/smtp/email', [
+                'sender' => [
+                    'name' => 'AgrIoT Soporte',
+                    'email' => env('MAIL_FROM_ADDRESS', 'santytorres879@gmail.com')
+                ],
+                'to' => [
+                    ['email' => $request->correo, 'name' => $usuario->nombre]
+                ],
+                'subject' => 'Restablecimiento de Contraseña - AgrIoT',
+                'htmlContent' => "
+                    <h2>Hola, {$usuario->nombre}</h2>
+                    <p>Has recibido este correo porque solicitaste un restablecimiento de contraseña para tu cuenta de AgrIoT.</p>
+                    <p><a href='{$urlFrontend}' style='background: #2e7d32; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;'>Restablecer Contraseña</a></p>
+                    <p>Este enlace caducará en 1 hora.</p>
+                "
+            ]);
+
+            if ($response->successful()) {
+                return response()->json([
+                    'detail' => 'Enlace enviado con éxito a tu correo electrónico.'
+                ], 200);
+            }
 
             return response()->json([
-                'detail' => 'Enlace enviado con éxito a tu correo electrónico.'
-            ], 200);
+                'detail' => 'Error al enviar por API de Brevo: ' . $response->body()
+            ], 500);
 
         } catch (\Exception $e) {
             return response()->json([
-                'detail' => 'Error al procesar la solicitud de correo: ' . $e->getMessage()
+                'detail' => 'Error en el servidor: ' . $e->getMessage()
             ], 500);
         }
     }
