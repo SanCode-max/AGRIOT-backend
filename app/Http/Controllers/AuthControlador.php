@@ -102,7 +102,6 @@ class AuthControlador extends Controller
     // 1. SOLICITAR ENLACE DE RECUPERACIÓN DE CONTRASEÑA
     public function requestPassword(Request $request)
     {
-        // Validar que el correo venga en la petición
         $validator = Validator::make($request->all(), [
             'correo' => 'required|email',
         ]);
@@ -113,34 +112,37 @@ class AuthControlador extends Controller
             ], 422);
         }
 
-        // Buscar el usuario por correo
-        $usuario = User::where('correo', $request->correo)->first();
+        try {
+            $usuario = User::where('correo', $request->correo)->first();
 
-        // Por seguridad, si el usuario no existe, se responde un mensaje exitoso genérico
-        if (!$usuario) {
+            if (!$usuario) {
+                return response()->json([
+                    'detail' => 'Si el correo está registrado, recibirás un enlace de recuperación pronto.'
+                ], 200);
+            }
+
+            $token = Str::random(60);
+
+            DB::table('password_reset_tokens')->updateOrInsert(
+                ['email' => $request->correo],
+                [
+                    'token'      => Hash::make($token),
+                    'created_at' => now()
+                ]
+            );
+
+            // Enviar la notificación
+            $usuario->notify(new RestablecerPasswordNotification($token, $request->correo));
+
             return response()->json([
-                'detail' => 'Si el correo está registrado, recibirás un enlace de recuperación pronto.'
+                'detail' => 'Enlace enviado con éxito a tu correo electrónico.'
             ], 200);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'detail' => 'Error al procesar la solicitud de correo: ' . $e->getMessage()
+            ], 500);
         }
-
-        // Generar token único seguro de 60 caracteres
-        $token = Str::random(60);
-
-        // Guardar o actualizar el token en la tabla 'password_reset_tokens'
-        DB::table('password_reset_tokens')->updateOrInsert(
-            ['email' => $request->correo], // Nota: la migración usa el campo 'email' por defecto
-            [
-                'token'      => Hash::make($token), // Guardamos el token de forma encriptada
-                'created_at' => now()
-            ]
-        );
-
-        // Enviar la notificación por correo al usuario
-        $usuario->notify(new RestablecerPasswordNotification($token, $request->correo));
-
-        return response()->json([
-            'detail' => 'Enlace enviado con éxito a tu correo electrónico.'
-        ], 200);
     }
 
     // 2. RESTABLECER LA CONTRASEÑA CON EL TOKEN
