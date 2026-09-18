@@ -21,15 +21,17 @@ class PerfilControlador extends Controller
 
         return response()->json([
             'nombre'              => $usuario->nombre,
+            'apellido'            => $usuario->apellido,
+            'nombre_completo'     => $usuario->nombre . ' ' . $usuario->apellido,
             'correo'              => $usuario->correo,
             'telefono'            => $usuario->telefono,
             'profesion'           => $usuario->profesion ?? 'Agricultor',
             'ubicacion'           => $usuario->ubicacion ?? 'Ubaté, Cundinamarca',
             'foto'                => $usuario->foto ? asset('storage/' . $usuario->foto) : null,
-            'ultima_sesion'       => '14/03/2025',
+            'ultima_sesion'       => 'Hoy',
             'proyectos_asignados' => 2,
             'cultivos_seguimiento'=> 3,
-            'estabilidad'         => 75
+            'estabilidad'         => 75 
         ], 200);
     }
 
