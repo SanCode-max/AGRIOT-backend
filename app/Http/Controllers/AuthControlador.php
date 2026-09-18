@@ -78,29 +78,144 @@ class AuthControlador extends Controller
             ], 422);
         }
 
-        // Buscamos al usuario por la columna 'correo'
+        // Buscamos al usuario por correo
         $usuario = User::where('correo', $request->correo)->first();
 
-        // Verificamos si existe y si la contraseña coincide
+        // Verificamos credenciales básicas
         if (!$usuario || !Hash::check($request->password, $usuario->password)) {
             return response()->json([
                 'detail' => 'Correo o contraseña incorrectos'
             ], 401);
         }
 
-        return response()->json([
-            'mensaje' => 'Inicio de sesión exitoso',
-            'usuario' => [
-                'id'       => $usuario->id,
-                'nombre'   => $usuario->nombre,
-                'apellido' => $usuario->apellido,
-                'correo'   => $usuario->correo,
-                'rol'      => 'administrador'
-            ]
-        ], 200);
+        try {
+            // Generar token MFA de 60 caracteres
+            $tokenMfa = Str::random(60);
+
+            // Guardar o actualizar el token en la tabla login_mfa_tokens
+            DB::table('login_mfa_tokens')->updateOrInsert(
+                ['email' => $usuario->correo],
+                [
+                    'token'      => Hash::make($tokenMfa),
+                    'created_at' => now()
+                ]
+            );
+
+            // URL hacia el Frontend en Vercel para la verificación del 2FA
+            $urlFrontend2FA = env('FRONTEND_URL', 'https://frontend-agriot.vercel.app') 
+                . '/verificar-2fa?token=' . $tokenMfa 
+                . '&correo=' . urlencode($usuario->correo);
+
+            // Envío del enlace vía API HTTP de Brevo (Puerto 443 - HTTPS)
+            $response = Http::withHeaders([
+                'api-key'      => env('BREVO_API_KEY'),
+                'accept'       => 'application/json',
+                'content-type' => 'application/json',
+            ])->post('https://api.brevo.com/v3/smtp/email', [
+                'sender' => [
+                    'name'  => 'AgrIoT Seguridad',
+                    'email' => env('MAIL_FROM_ADDRESS', 'santytorres879@gmail.com')
+                ],
+                'to' => [
+                    ['email' => $usuario->correo, 'name' => $usuario->nombre]
+                ],
+                'subject' => 'Código de Verificación / Enlace de Acceso - AgrIoT',
+                'htmlContent' => "
+                    <div style='font-family: Arial, sans-serif; padding: 20px; color: #333;'>
+                        <h2>Autenticación de Dos Factores (2FA)</h2>
+                        <p>Hola, <strong>{$usuario->nombre}</strong>.</p>
+                        <p>Se ha solicitado un inicio de sesión en tu cuenta. Haz clic en el siguiente enlace para completar la verificación e ingresar al sistema:</p>
+                        <p style='margin: 25px 0;'>
+                            <a href='{$urlFrontend2FA}' style='background-color: #2e7d32; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold;'>Ingresar al Dashboard</a>
+                        </p>
+                        <p>Este enlace caducará en 10 minutos.</p>
+                        <p style='color: #888; font-size: 12px;'>Si no intentaste iniciar sesión, ignora este correo.</p>
+                    </div>
+                "
+            ]);
+
+            if ($response->successful()) {
+                return response()->json([
+                    'requiere_2fa' => true,
+                    'detail'       => 'Credenciales correctas. Se ha enviado un enlace de verificación a tu correo electrónico.'
+                ], 200);
+            }
+
+            return response()->json([
+                'detail' => 'Error al enviar el correo de verificación 2FA.'
+            ], 500);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'detail' => 'Error en el servidor al procesar 2FA: ' . $e->getMessage()
+            ], 500);
+        }
     }
 
-    // 1. SOLICITAR ENLACE DE RECUPERACIÓN DE CONTRASEÑA
+
+    // 3. VERIFICAR LOGIN 2FA (Paso 2: Valida el token del link y autoriza la sesión)
+    public function verificarLogin2FA(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'correo' => 'required|email',
+            'token'  => 'required|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'detail' => 'Parámetros de verificación inválidos.'
+            ], 422);
+        }
+
+        // Buscar registro del token
+        $registroToken = DB::table('login_mfa_tokens')
+            ->where('email', $request->correo)
+            ->first();
+
+        if (!$registroToken) {
+            return response()->json([
+                'detail' => 'El enlace de acceso es inválido o ya fue utilizado.'
+            ], 400);
+        }
+
+        // Expiración de 10 minutos (600 segundos)
+        if (now()->subSeconds(600)->gt($registroToken->created_at)) {
+            DB::table('login_mfa_tokens')->where('email', $request->correo)->delete();
+            return response()->json([
+                'detail' => 'El enlace de acceso ha caducado. Vuelve a iniciar sesión.'
+            ], 400);
+        }
+
+        // Validar token
+        if (!Hash::check($request->token, $registroToken->token)) {
+            return response()->json([
+                'detail' => 'El token de verificación no es válido.'
+            ], 400);
+        }
+
+        // Obtener usuario y responder inicio de sesión exitoso
+        $usuario = User::where('correo', $request->correo)->first();
+
+        if ($usuario) {
+            // Eliminar token para evitar reutilización del enlace
+            DB::table('login_mfa_tokens')->where('email', $request->correo)->delete();
+
+            return response()->json([
+                'mensaje' => 'Autenticación multifactor completada',
+                'usuario' => [
+                    'id'       => $usuario->id,
+                    'nombre'   => $usuario->nombre,
+                    'apellido' => $usuario->apellido,
+                    'correo'   => $usuario->correo,
+                    'rol'      => 'administrador'
+                ]
+            ], 200);
+        }
+
+        return response()->json(['detail' => 'Usuario no encontrado.'], 404);
+    }
+
+    // 4. SOLICITAR ENLACE DE RECUPERACIÓN DE CONTRASEÑA
     public function requestPassword(Request $request)
     {
         $validator = Validator::make($request->all(), [
@@ -175,7 +290,7 @@ class AuthControlador extends Controller
         }
     }
 
-    // 2. RESTABLECER LA CONTRASEÑA CON EL TOKEN
+    // 5. RESTABLECER LA CONTRASEÑA CON EL TOKEN
     public function resetPassword(Request $request)
     {
         $validator = Validator::make($request->all(), [
