@@ -64,7 +64,7 @@ class AuthControlador extends Controller
     }
 
 
-    // 2. LOGIN
+    // 2. LOGIN - PASO 1 (Valida credenciales y genera código de 6 dígitos)
     public function login(Request $request)
     {
         $validator = Validator::make($request->all(), [
@@ -74,14 +74,12 @@ class AuthControlador extends Controller
 
         if ($validator->fails()) {
             return response()->json([
-                'detail' => 'Por favor, ingrese correo y contraseña válidos.'
+                'detail' => 'Por favor, ingrese un correo electrónico y contraseña válidos.'
             ], 422);
         }
 
-        // Buscamos al usuario por correo
         $usuario = User::where('correo', $request->correo)->first();
 
-        // Verificamos credenciales básicas
         if (!$usuario || !Hash::check($request->password, $usuario->password)) {
             return response()->json([
                 'detail' => 'Correo o contraseña incorrectos'
@@ -89,24 +87,19 @@ class AuthControlador extends Controller
         }
 
         try {
-            // Generar token MFA de 60 caracteres
-            $tokenMfa = Str::random(60);
+            // Generar código numérico seguro de 6 dígitos
+            $codigoOtp = random_int(100000, 999999);
 
-            // Guardar o actualizar el token en la tabla login_mfa_tokens
+            // Guardar el código encriptado en la base de datos
             DB::table('login_mfa_tokens')->updateOrInsert(
                 ['email' => $usuario->correo],
                 [
-                    'token'      => Hash::make($tokenMfa),
+                    'token'      => Hash::make($codigoOtp),
                     'created_at' => now()
                 ]
             );
 
-            // URL hacia el Frontend en Vercel para la verificación del 2FA
-            $urlFrontend2FA = env('FRONTEND_URL', 'https://frontend-agriot.vercel.app') 
-                . '/verificar-2fa?token=' . $tokenMfa 
-                . '&correo=' . urlencode($usuario->correo);
-
-            // Envío del enlace vía API HTTP de Brevo (Puerto 443 - HTTPS)
+            // Envío del código por la API HTTP de Brevo (HTTPS Puerto 443)
             $response = Http::withHeaders([
                 'api-key'      => env('BREVO_API_KEY'),
                 'accept'       => 'application/json',
@@ -119,17 +112,16 @@ class AuthControlador extends Controller
                 'to' => [
                     ['email' => $usuario->correo, 'name' => $usuario->nombre]
                 ],
-                'subject' => 'Código de Verificación / Enlace de Acceso - AgrIoT',
+                'subject' => "{$codigoOtp} es tu código de verificación - AgrIoT",
                 'htmlContent' => "
-                    <div style='font-family: Arial, sans-serif; padding: 20px; color: #333;'>
-                        <h2>Autenticación de Dos Factores (2FA)</h2>
+                    <div style='font-family: Arial, sans-serif; padding: 25px; color: #333; max-width: 500px; margin: auto; border: 1px solid #e0e0e0; border-radius: 10px;'>
+                        <h2 style='color: #2e7d32; text-align: center;'>AgrIoT - Verificación 2FA</h2>
                         <p>Hola, <strong>{$usuario->nombre}</strong>.</p>
-                        <p>Se ha solicitado un inicio de sesión en tu cuenta. Haz clic en el siguiente enlace para completar la verificación e ingresar al sistema:</p>
-                        <p style='margin: 25px 0;'>
-                            <a href='{$urlFrontend2FA}' style='background-color: #2e7d32; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold;'>Ingresar al Dashboard</a>
-                        </p>
-                        <p>Este enlace caducará en 10 minutos.</p>
-                        <p style='color: #888; font-size: 12px;'>Si no intentaste iniciar sesión, ignora este correo.</p>
+                        <p>Usa el siguiente código de verificación de 6 dígitos para completar tu inicio de sesión:</p>
+                        <div style='background-color: #f4f6f8; padding: 15px; text-align: center; font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #2e7d32; margin: 20px 0; border-radius: 8px;'>
+                            {$codigoOtp}
+                        </div>
+                        <p style='font-size: 13px; color: #666;'>Este código caducará en 5 minutos. No lo compartas con nadie.</p>
                     </div>
                 "
             ]);
@@ -137,71 +129,69 @@ class AuthControlador extends Controller
             if ($response->successful()) {
                 return response()->json([
                     'requiere_2fa' => true,
-                    'detail'       => 'Credenciales correctas. Se ha enviado un enlace de verificación a tu correo electrónico.'
+                    'detail'       => 'Se ha enviado un código de verificación a tu correo.'
                 ], 200);
             }
 
             return response()->json([
-                'detail' => 'Error al enviar el correo de verificación 2FA.'
+                'detail' => 'Error al enviar el código de verificación.'
             ], 500);
 
         } catch (\Exception $e) {
             return response()->json([
-                'detail' => 'Error en el servidor al procesar 2FA: ' . $e->getMessage()
+                'detail' => 'Error en el servidor al generar el código: ' . $e->getMessage()
             ], 500);
         }
     }
 
-
-    // 3. VERIFICAR LOGIN 2FA (Paso 2: Valida el token del link y autoriza la sesión)
+    // 3. LOGIN - PASO 2 (Valida el código de 6 dígitos e inicia la sesión)
     public function verificarLogin2FA(Request $request)
     {
         $validator = Validator::make($request->all(), [
             'correo' => 'required|email',
-            'token'  => 'required|string',
+            'codigo' => 'required|numeric|digits:6',
         ]);
 
         if ($validator->fails()) {
             return response()->json([
-                'detail' => 'Parámetros de verificación inválidos.'
+                'detail' => 'El código debe ser de 6 dígitos numéricos.'
             ], 422);
         }
 
-        // Buscar registro del token
         $registroToken = DB::table('login_mfa_tokens')
             ->where('email', $request->correo)
             ->first();
 
         if (!$registroToken) {
             return response()->json([
-                'detail' => 'El enlace de acceso es inválido o ya fue utilizado.'
+                'detail' => 'El código es inválido o no se ha solicitado.'
             ], 400);
         }
 
-        // Expiración de 10 minutos (600 segundos)
-        if (now()->subSeconds(600)->gt($registroToken->created_at)) {
+        // Expiración de 5 minutos (300 segundos)
+        if (now()->subSeconds(300)->gt($registroToken->created_at)) {
             DB::table('login_mfa_tokens')->where('email', $request->correo)->delete();
             return response()->json([
-                'detail' => 'El enlace de acceso ha caducado. Vuelve a iniciar sesión.'
+                'detail' => 'El código ha caducado. Vuelve a ingresar tus datos para generar uno nuevo.'
             ], 400);
         }
 
-        // Validar token
-        if (!Hash::check($request->token, $registroToken->token)) {
+        // Validar que el código coincida
+        if (!Hash::check($request->codigo, $registroToken->token)) {
             return response()->json([
-                'detail' => 'El token de verificación no es válido.'
+                'detail' => 'Código de verificación incorrecto.'
             ], 400);
         }
 
-        // Obtener usuario y responder inicio de sesión exitoso
+        // Si es válido, obtener usuario y retornar la sesión
         $usuario = User::where('correo', $request->correo)->first();
 
         if ($usuario) {
-            // Eliminar token para evitar reutilización del enlace
+            // Eliminar el código usado
             DB::table('login_mfa_tokens')->where('email', $request->correo)->delete();
 
             return response()->json([
-                'mensaje' => 'Autenticación multifactor completada',
+                'mensaje' => 'Inicio de sesión exitoso',
                 'usuario' => [
                     'id'       => $usuario->id,
                     'nombre'   => $usuario->nombre,
