@@ -3,17 +3,16 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
-use App\Notifications\RestablecerPasswordNotification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
+use Carbon\Carbon;
 
 class AuthControlador extends Controller
 {
-
     // 1. REGISTRO
     public function registro(Request $request)
     {
@@ -63,8 +62,7 @@ class AuthControlador extends Controller
         }
     }
 
-
-    // 2. LOGIN - PASO 1 (Valida credenciales y genera código de 6 dígitos)
+    // 2. LOGIN - PASO 1 (Valida credenciales y genera código OTP de 6 dígitos)
     public function login(Request $request)
     {
         $validator = Validator::make($request->all(), [
@@ -90,7 +88,7 @@ class AuthControlador extends Controller
             // Generar código numérico seguro de 6 dígitos
             $codigoOtp = random_int(100000, 999999);
 
-            // Guardar el código encriptado en la base de datos
+            // Guardar código encriptado
             DB::table('login_mfa_tokens')->updateOrInsert(
                 ['email' => $usuario->correo],
                 [
@@ -99,7 +97,7 @@ class AuthControlador extends Controller
                 ]
             );
 
-            // Envío del código por la API HTTP de Brevo (HTTPS Puerto 443)
+            // Envío vía API HTTP de Brevo (HTTPS Puerto 443)
             $response = Http::withHeaders([
                 'api-key'      => env('BREVO_API_KEY'),
                 'accept'       => 'application/json',
@@ -134,7 +132,7 @@ class AuthControlador extends Controller
             }
 
             return response()->json([
-                'detail' => 'Error al enviar el código de verificación.'
+                'detail' => 'Error al enviar el código por la API de correo.'
             ], 500);
 
         } catch (\Exception $e) {
@@ -144,7 +142,7 @@ class AuthControlador extends Controller
         }
     }
 
-    // 3. LOGIN - PASO 2 (Valida el código de 6 dígitos e inicia la sesión)
+    // 3. LOGIN - PASO 2 (Valida el código de 6 dígitos e inicia sesión)
     public function verificarLogin2FA(Request $request)
     {
         $validator = Validator::make($request->all(), [
@@ -168,26 +166,31 @@ class AuthControlador extends Controller
             ], 400);
         }
 
-        // Expiración de 5 minutos (300 segundos)
-        if (now()->subSeconds(300)->gt($registroToken->created_at)) {
+        // --- SOLUCIÓN A ZONA HORARIA Y EXPIRACIÓN EN SEGUNDOS ---
+        $tiempoCreacion = Carbon::parse($registroToken->created_at)->timestamp;
+        $tiempoActual   = now()->timestamp;
+        $diferenciaSegundos = $tiempoActual - $tiempoCreacion;
+
+        // Permite un margen razonable de 5 minutos (300 segundos) y tolera pequeños desajustes de reloj
+        if ($diferenciaSegundos < -60 || $diferenciaSegundos > 300) {
             DB::table('login_mfa_tokens')->where('email', $request->correo)->delete();
             return response()->json([
                 'detail' => 'El código ha caducado. Vuelve a ingresar tus datos para generar uno nuevo.'
             ], 400);
         }
 
-        // Validar que el código coincida
+        // Validar hash del código
         if (!Hash::check($request->codigo, $registroToken->token)) {
             return response()->json([
                 'detail' => 'Código de verificación incorrecto.'
             ], 400);
         }
 
-        // Si es válido, obtener usuario y retornar la sesión
+        // Obtener datos del usuario
         $usuario = User::where('correo', $request->correo)->first();
 
         if ($usuario) {
-            // Eliminar el código usado
+            // Eliminar token para evitar reusar el mismo código
             DB::table('login_mfa_tokens')->where('email', $request->correo)->delete();
 
             return response()->json([
@@ -205,7 +208,7 @@ class AuthControlador extends Controller
         return response()->json(['detail' => 'Usuario no encontrado.'], 404);
     }
 
-    // 4. SOLICITAR ENLACE DE RECUPERACIÓN DE CONTRASEÑA
+    // 4. SOLICITAR ENLACE DE RECUPERACIÓN
     public function requestPassword(Request $request)
     {
         $validator = Validator::make($request->all(), [
@@ -241,14 +244,13 @@ class AuthControlador extends Controller
                 . '/restablecer-password?token=' . $token 
                 . '&correo=' . urlencode($request->correo);
 
-            // Envío directo mediante la API HTTP de Brevo (Puerto 443 - Inmune a bloqueos)
             $response = Http::withHeaders([
-                'api-key' => env('BREVO_API_KEY'),
-                'accept' => 'application/json',
+                'api-key'      => env('BREVO_API_KEY'),
+                'accept'       => 'application/json',
                 'content-type' => 'application/json',
             ])->post('https://api.brevo.com/v3/smtp/email', [
                 'sender' => [
-                    'name' => 'AgrIoT Soporte',
+                    'name'  => 'AgrIoT Soporte',
                     'email' => env('MAIL_FROM_ADDRESS', 'santytorres879@gmail.com')
                 ],
                 'to' => [
@@ -280,13 +282,13 @@ class AuthControlador extends Controller
         }
     }
 
-    // 5. RESTABLECER LA CONTRASEÑA CON EL TOKEN
+    // 5. RESTABLECER LA CONTRASEÑA
     public function resetPassword(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'correo'                => 'required|email',
-            'token'                 => 'required|string',
-            'password'              => [
+            'correo'   => 'required|email',
+            'token'    => 'required|string',
+            'password' => [
                 'required',
                 'string',
                 'min:8',
@@ -305,7 +307,6 @@ class AuthControlador extends Controller
             ], 422);
         }
 
-        // Buscar el registro del token en la base de datos
         $registroToken = DB::table('password_reset_tokens')
             ->where('email', $request->correo)
             ->first();
@@ -316,28 +317,24 @@ class AuthControlador extends Controller
             ], 400);
         }
 
-        // Verificar si el token ha expirado (ej. 60 minutos)
-        if (now()->subSeconds(60)->gt($registroToken->created_at)) {
+        if (now()->subSeconds(3600)->gt($registroToken->created_at)) {
             DB::table('password_reset_tokens')->where('email', $request->correo)->delete();
             return response()->json([
                 'detail' => 'El enlace de recuperación ha caducado. Solicita uno nuevo.'
             ], 400);
         }
 
-        // Validar que el token coincida con el hash guardado
         if (!Hash::check($request->token, $registroToken->token)) {
             return response()->json([
                 'detail' => 'El token proporcionado no es válido.'
             ], 400);
         }
 
-        // Actualizar la contraseña del usuario
         $usuario = User::where('correo', $request->correo)->first();
         if ($usuario) {
             $usuario->password = Hash::make($request->password);
             $usuario->save();
 
-            // Eliminar el token usado para evitar reutilizaciones
             DB::table('password_reset_tokens')->where('email', $request->correo)->delete();
 
             return response()->json([
