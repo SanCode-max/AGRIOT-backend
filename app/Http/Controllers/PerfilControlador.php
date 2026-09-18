@@ -45,7 +45,7 @@ class PerfilControlador extends Controller
         }
 
         $validator = Validator::make($request->all(), [
-            'nombre'    => 'sometimes|required|string|max:100',
+            'nombre'    => 'sometimes|required|string|max:255',
             'telefono'  => 'sometimes|required|string|digits:10',
             'ubicacion' => 'nullable|string|max:255',
             'profesion' => 'nullable|string|max:100',
@@ -57,14 +57,33 @@ class PerfilControlador extends Controller
             return response()->json(['detail' => $validator->errors()->first()], 422);
         }
 
-        // Actualizar campos
-        $usuario->update($request->only([
-            'nombre', 'telefono', 'ubicacion', 'profesion', 'latitud', 'longitud'
-        ]));
+        // Si se envió un nombre completo, separar en 'nombre' y 'apellido'
+        if ($request->has('nombre')) {
+            $partesNombre = explode(' ', trim($request->nombre), 2);
+            $usuario->nombre = $partesNombre[0]; // Primer nombre
+            $usuario->apellido = $partesNombre[1] ?? ''; // Resto como apellidos
+        }
+
+        // Actualizar el resto de los campos
+        if ($request->has('telefono'))  $usuario->telefono  = $request->telefono;
+        if ($request->has('ubicacion')) $usuario->ubicacion = $request->ubicacion;
+        if ($request->has('profesion')) $usuario->profesion = $request->profesion;
+        if ($request->has('latitud'))   $usuario->latitud   = $request->latitud;
+        if ($request->has('longitud'))  $usuario->longitud  = $request->longitud;
+
+        $usuario->save();
 
         return response()->json([
             'mensaje' => 'Perfil actualizado correctamente',
-            'usuario' => $usuario
+            'usuario' => [
+                'nombre'          => $usuario->nombre,
+                'apellido'        => $usuario->apellido,
+                'nombre_completo' => trim($usuario->nombre . ' ' . $usuario->apellido),
+                'correo'          => $usuario->correo,
+                'telefono'        => $usuario->telefono,
+                'profesion'       => $usuario->profesion,
+                'ubicacion'       => $usuario->ubicacion,
+            ]
         ], 200);
     }
 
