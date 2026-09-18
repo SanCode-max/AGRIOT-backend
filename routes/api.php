@@ -6,6 +6,7 @@ use App\Http\Controllers\PerfilControlador;
 
 Route::post('/registro', [AuthControlador::class, 'registro']);
 Route::post('/login', [AuthControlador::class, 'login']);
+Route::post('/verificar_login_2fa', [AuthControlador::class, 'verificarLogin2FA']);
 Route::post('/request_password', [AuthControlador::class, 'requestPassword']);
 Route::post('/reset_password', [AuthControlador::class, 'resetPassword']);
 Route::get('/perfil/{correo}', [PerfilControlador::class, 'obtenerPerfil'])->where('correo', '.*');
