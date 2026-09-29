@@ -13,9 +13,6 @@ return new class extends Migration
             if (!Schema::hasColumn('cultivos', 'device_id')) {
                 $table->string('device_id', 120)->nullable()->unique()->after('user_id');
             }
-            if (!Schema::hasColumn('cultivos', 'variedad')) {
-                $table->string('variedad', 120)->default('Arándano')->after('nombre');
-            }
             if (!Schema::hasColumn('cultivos', 'fecha_estimada_cosecha')) {
                 $table->date('fecha_estimada_cosecha')->nullable()->after('fecha_siembra');
             }
@@ -38,7 +35,7 @@ return new class extends Migration
     {
         Schema::table('cultivos', function (Blueprint $table) {
             $table->dropUnique(['device_id']);
-            $table->dropColumn(['device_id', 'variedad', 'fecha_estimada_cosecha', 'estado_actual']);
+            $table->dropColumn(['device_id', 'fecha_estimada_cosecha', 'estado_actual']);
         });
     }
 };
