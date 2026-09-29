@@ -6,6 +6,7 @@ use App\Models\Cultivo;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\DB;
 
 class CultivoController extends Controller
 {
@@ -45,11 +46,45 @@ class CultivoController extends Controller
 
     public function store(Request $request)
     {
-        $data = $request->validate([
+        $data = $request->validate($this->reglasCultivo());
+
+        $cultivo = Cultivo::create($this->atributosCultivo($data));
+
+        return response()->json(['mensaje' => 'Cultivo registrado.', 'cultivo' => $this->formato($cultivo->load('user'))], 201);
+    }
+
+    public function update(Request $request, int $id)
+    {
+        $cultivo = Cultivo::findOrFail($id);
+        $data = $request->validate($this->reglasCultivo($cultivo));
+
+        DB::transaction(function () use ($cultivo, $data) {
+            $cultivo->update($this->atributosCultivo($data));
+        });
+
+        return response()->json(['mensaje' => 'Cultivo actualizado.', 'cultivo' => $this->formato($cultivo->refresh()->load('user'))]);
+    }
+
+    public function destroy(int $id)
+    {
+        $cultivo = Cultivo::findOrFail($id);
+        $cultivo->delete();
+
+        return response()->json(['mensaje' => 'Cultivo eliminado.']);
+    }
+
+    private function reglasCultivo(?Cultivo $cultivo = null): array
+    {
+        $deviceIdRule = Rule::unique('cultivos', 'device_id');
+        if ($cultivo) {
+            $deviceIdRule->ignore($cultivo->id);
+        }
+
+        return [
             'nombre' => ['required', 'string', 'max:150'],
             'variedad' => ['nullable', 'string', 'max:120'],
             'user_id' => ['required', 'integer', Rule::exists('users', 'id')->where('rol', 'user')],
-            'device_id' => ['required', 'string', 'max:120', 'unique:cultivos,device_id'],
+            'device_id' => ['required', 'string', 'max:120', $deviceIdRule],
             'fecha_siembra' => ['required', 'date'],
             'fecha_estimada_cosecha' => ['nullable', 'date', 'after_or_equal:fecha_siembra'],
             'estado_actual' => ['required', 'string', Rule::in(['Vegetativo', 'Floración', 'Fructificación', 'Cosecha', 'Descanso', 'Otro'])],
@@ -57,16 +92,17 @@ class CultivoController extends Controller
             'observaciones' => ['nullable', 'string', 'max:5000'],
             'latitud' => ['nullable', 'numeric', 'between:-90,90', 'required_with:longitud'],
             'longitud' => ['nullable', 'numeric', 'between:-180,180', 'required_with:latitud'],
-        ]);
+        ];
+    }
 
-        $cultivo = Cultivo::create([
+    private function atributosCultivo(array $data): array
+    {
+        return [
             ...$data,
             // Compatibility columns are kept while the older dashboard is migrated.
             'fecha_cosecha' => $data['fecha_estimada_cosecha'] ?? null,
             'estado' => $data['estado_actual'],
-        ]);
-
-        return response()->json(['mensaje' => 'Cultivo registrado.', 'cultivo' => $this->formato($cultivo->load('user'))], 201);
+        ];
     }
 
     public function show(Request $request, int $id)

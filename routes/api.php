@@ -22,6 +22,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::middleware('role.crop-manager')->group(function () {
             Route::get('/admin/usuarios', [CultivoController::class, 'usuariosAsignables']);
             Route::post('/cultivos', [CultivoController::class, 'store']);
+            Route::put('/cultivos/{id}', [CultivoController::class, 'update'])->whereNumber('id');
+            Route::delete('/cultivos/{id}', [CultivoController::class, 'destroy'])->whereNumber('id');
         });
         Route::middleware('role.admin')->post('/admin/users', [UserController::class, 'store']);
         Route::middleware('role.admin')->put('/admin/users/{user}/cultivos', [UserController::class, 'assignCultivos']);

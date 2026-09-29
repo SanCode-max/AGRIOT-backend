@@ -23,6 +23,7 @@ Rutas añadidas:
 - `GET /api/cultivos` y `GET /api/cultivos/{id}` (Bearer Sanctum): filtran automáticamente por usuario para `user`; `admin` y `asistente` pueden consultar todos.
 - `GET /api/cultivos/mapa` (Bearer Sanctum): devuelve cultivos geolocalizados con usuario, variedad y nodo, aplicando el mismo filtro de rol.
 - `POST /api/cultivos` (Bearer Sanctum, `admin` o `asistente`): crea un cultivo con `nombre`, `user_id`, `device_id`, `fecha_siembra`, `fecha_estimada_cosecha`, `estado_actual`, `ubicacion` y `observaciones`.
+- `PUT /api/cultivos/{id}` y `DELETE /api/cultivos/{id}` (Bearer Sanctum, `admin` o `asistente`): actualiza o elimina el cultivo.
 - `GET /api/admin/usuarios` (Bearer Sanctum, `admin` o `asistente`): lista operarios para el formulario de asignación.
 
 En React están las rutas `/admin/usuarios`, `/cambiar-password`, `/dashboard/usuario`, `/mapa` y `/cultivos/:id`. Define `REACT_APP_API_BASE_URL` en el frontend si la API no está en el host predeterminado. La sub-dashboard simula las lecturas del nodo hasta integrar el hardware.
