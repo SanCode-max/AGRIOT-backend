@@ -6,6 +6,7 @@ use App\Http\Controllers\PerfilControlador;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\UsuarioDashboardController;
 use App\Http\Controllers\CultivoController;
+use App\Http\Controllers\NutritionalCalculatorController;
 
 Route::post('/registro', [AuthControlador::class, 'registro']);
 Route::post('/login', [AuthControlador::class, 'login']);
@@ -19,6 +20,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/cultivos', [CultivoController::class, 'index']);
         Route::get('/cultivos/mapa', [CultivoController::class, 'mapa']);
         Route::get('/cultivos/{id}', [CultivoController::class, 'show'])->whereNumber('id');
+        Route::post('/calculadora-nutricional', [NutritionalCalculatorController::class, 'calculate']);
         Route::middleware('role.crop-manager')->group(function () {
             Route::get('/admin/usuarios', [CultivoController::class, 'usuariosAsignables']);
             Route::post('/cultivos', [CultivoController::class, 'store']);
