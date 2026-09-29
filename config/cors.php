@@ -12,7 +12,7 @@ return [
 
     'allowed_methods' => ['*'],
 
-    'allowed_origins' => ['https://frontend-agriot.vercel.app'],
+    'allowed_origins' => ['https://frontend-agriot.vercel.app', 'http://localhost:3000'],
 
     'allowed_origins_patterns' => [],
 

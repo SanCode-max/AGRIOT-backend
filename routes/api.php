@@ -3,12 +3,23 @@
 use App\Http\Controllers\AuthControlador;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\PerfilControlador;
+use App\Http\Controllers\UserController;
+use App\Http\Controllers\UsuarioDashboardController;
 
 Route::post('/registro', [AuthControlador::class, 'registro']);
 Route::post('/login', [AuthControlador::class, 'login']);
 Route::post('/verificar_login_2fa', [AuthControlador::class, 'verificarLogin2FA']);
 Route::post('/request_password', [AuthControlador::class, 'requestPassword']);
 Route::post('/reset_password', [AuthControlador::class, 'resetPassword']);
+Route::middleware('auth:sanctum')->group(function () {
+    Route::post('/password/change-initial', [AuthControlador::class, 'cambiarPasswordInicial']);
+    Route::post('/logout', [AuthControlador::class, 'logout']);
+    Route::middleware('password.changed')->group(function () {
+        Route::middleware('role.admin')->post('/admin/users', [UserController::class, 'store']);
+        Route::middleware('role.admin')->put('/admin/users/{user}/cultivos', [UserController::class, 'assignCultivos']);
+        Route::get('/usuario/dashboard', [UsuarioDashboardController::class, 'show']);
+    });
+});
 Route::get('/perfil/{correo}', [PerfilControlador::class, 'obtenerPerfil'])->where('correo', '.*');
 Route::put('/perfil/{correo}', [PerfilControlador::class, 'actualizarPerfil'])->where('correo', '.*');
 Route::post('/perfil/foto/{correo}', [PerfilControlador::class, 'actualizarFoto'])->where('correo', '.*');

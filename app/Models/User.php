@@ -5,10 +5,11 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable
 {
-    use HasFactory, Notifiable;
+    use HasApiTokens, HasFactory, Notifiable;
 
     protected $fillable = [
         'nombre',
@@ -16,6 +17,8 @@ class User extends Authenticatable
         'telefono',
         'correo',
         'password',
+        'rol',
+        'must_change_password',
     ];
 
     protected $hidden = [
@@ -27,11 +30,17 @@ class User extends Authenticatable
     {
         return [
             'password' => 'hashed',
+            'must_change_password' => 'boolean',
         ];
     }
 
     public function routeNotificationForMail($notification)
     {
         return $this->correo;
+    }
+
+    public function cultivos()
+    {
+        return $this->hasMany(Cultivo::class);
     }
 }

@@ -48,6 +48,8 @@ class AuthControlador extends Controller
                 'telefono' => $request->telefono,
                 'correo'   => $request->correo,
                 'password' => Hash::make($request->password),
+                'rol'      => 'user',
+                'must_change_password' => false,
             ]);
 
             return response()->json([
@@ -200,12 +202,40 @@ class AuthControlador extends Controller
                     'nombre'   => $usuario->nombre,
                     'apellido' => $usuario->apellido,
                     'correo'   => $usuario->correo,
-                    'rol'      => 'administrador'
-                ]
+                    'rol'      => $usuario->rol,
+                    'must_change_password' => (bool) $usuario->must_change_password,
+                ],
+                'token' => $usuario->createToken('agriot-spa')->plainTextToken,
+                'token_type' => 'Bearer',
             ], 200);
         }
 
         return response()->json(['detail' => 'Usuario no encontrado.'], 404);
+    }
+
+    public function cambiarPasswordInicial(Request $request)
+    {
+        $request->validate([
+            'password_actual' => ['required', 'string'],
+            'password' => ['required', 'string', 'min:10', 'confirmed', 'regex:/[a-z]/', 'regex:/[A-Z]/', 'regex:/[0-9]/', 'regex:/[^A-Za-z0-9]/'],
+        ]);
+
+        $usuario = $request->user();
+        if (!Hash::check($request->password_actual, $usuario->password)) {
+            return response()->json(['detail' => 'La contraseña temporal no es correcta.'], 422);
+        }
+
+        $usuario->password = $request->password;
+        $usuario->must_change_password = false;
+        $usuario->save();
+
+        return response()->json(['mensaje' => 'Contraseña actualizada.', 'must_change_password' => false]);
+    }
+
+    public function logout(Request $request)
+    {
+        $request->user()->currentAccessToken()?->delete();
+        return response()->json(['mensaje' => 'Sesión cerrada.']);
     }
 
     // 4. SOLICITAR ENLACE DE RECUPERACIÓN

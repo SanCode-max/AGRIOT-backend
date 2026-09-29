@@ -9,6 +9,20 @@
 
 ## About Laravel
 
+## Módulo AgrIoT: usuarios y dashboard
+
+Configura `BREVO_API_KEY` y `MAIL_FROM_ADDRESS` / `MAIL_FROM_NAME` en el entorno del backend antes de crear usuarios. Ejecuta `php artisan migrate` para añadir `rol`, `must_change_password` y la tabla `cultivos`; las cuentas existentes se conservan con rol `admin`, y el registro público crea cuentas `user`.
+
+Rutas añadidas:
+
+- `POST /api/admin/users` (Bearer Sanctum, administrador): `nombre`, `apellido`, `correo`, `rol` (`admin` o `user`). Crea contraseña temporal y la envía por Brevo.
+- `PUT /api/admin/users/{user}/cultivos` (Bearer Sanctum, administrador): `cultivo_ids: number[]` reasigna cultivos al usuario indicado.
+- `POST /api/password/change-initial` (Bearer Sanctum): `password_actual`, `password`, `password_confirmation`.
+- `GET /api/usuario/dashboard` (Bearer Sanctum): devuelve únicamente cultivos del usuario autenticado.
+- `POST /api/logout` (Bearer Sanctum): revoca el token actual.
+
+En React están las rutas `/admin/usuarios`, `/cambiar-password` y `/dashboard/usuario`. Define `REACT_APP_API_BASE_URL` en el frontend si la API no está en el host predeterminado.
+
 Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
 
 - [Simple, fast routing engine](https://laravel.com/docs/routing).
