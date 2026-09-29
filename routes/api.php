@@ -14,6 +14,12 @@ Route::post('/verificar_login_2fa', [AuthControlador::class, 'verificarLogin2FA'
 Route::post('/request_password', [AuthControlador::class, 'requestPassword']);
 Route::post('/reset_password', [AuthControlador::class, 'resetPassword']);
 Route::middleware('auth:sanctum')->group(function () {
+    Route::get('/perfil/{correo}', [PerfilControlador::class, 'obtenerPerfil'])->where('correo', '.*');
+    Route::put('/perfil/{correo}', [PerfilControlador::class, 'actualizarPerfil'])->where('correo', '.*');
+    Route::post('/perfil/foto/{correo}', [PerfilControlador::class, 'actualizarFoto'])->where('correo', '.*');
+    Route::delete('/perfil/{correo}', [PerfilControlador::class, 'eliminarCuenta'])->where('correo', '.*');
+});
+Route::middleware('auth:sanctum')->group(function () {
     Route::post('/password/change-initial', [AuthControlador::class, 'cambiarPasswordInicial']);
     Route::post('/logout', [AuthControlador::class, 'logout']);
     Route::middleware('password.changed')->group(function () {
@@ -32,10 +38,6 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/usuario/dashboard', [UsuarioDashboardController::class, 'show']);
     });
 });
-Route::get('/perfil/{correo}', [PerfilControlador::class, 'obtenerPerfil'])->where('correo', '.*');
-Route::put('/perfil/{correo}', [PerfilControlador::class, 'actualizarPerfil'])->where('correo', '.*');
-Route::post('/perfil/foto/{correo}', [PerfilControlador::class, 'actualizarFoto'])->where('correo', '.*');
-Route::delete('/perfil/{correo}', [PerfilControlador::class, 'eliminarCuenta'])->where('correo', '.*');
 Route::get('/ping', function () {
     return response()->json(['status' => 'active', 'message' => 'AgrIoT Backend Live']);
 });

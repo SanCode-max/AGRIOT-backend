@@ -10,9 +10,15 @@ use Illuminate\Support\Facades\Validator;
 
 class PerfilControlador extends Controller
 {
-    // 1. OBTENER PERFIL
-    public function obtenerPerfil($correo)
+    private function autorizarPropietario(Request $request, string $correo): void
     {
+        abort_if(!$request->user() || strcasecmp($request->user()->correo, $correo) !== 0, 403, 'Solo puedes gestionar tu propio perfil.');
+    }
+
+    // 1. OBTENER PERFIL
+    public function obtenerPerfil(Request $request, $correo)
+    {
+        $this->autorizarPropietario($request, $correo);
         $usuario = User::where('correo', $correo)->first();
 
         if (!$usuario) {
@@ -27,7 +33,7 @@ class PerfilControlador extends Controller
             'telefono'            => $usuario->telefono,
             'profesion'           => $usuario->profesion ?? 'Agricultor',
             'ubicacion'           => $usuario->ubicacion ?? 'Ubaté, Cundinamarca',
-            'foto'                => $usuario->foto ? asset('storage/' . $usuario->foto) : null,
+            'foto'                => $usuario->foto ? Storage::disk(config('filesystems.profile_disk', 'public'))->url($usuario->foto) : null,
             'ultima_sesion'       => 'Hoy',
             'proyectos_asignados' => 2,
             'cultivos_seguimiento'=> 3,
@@ -38,6 +44,7 @@ class PerfilControlador extends Controller
     // 2. ACTUALIZAR DATOS DEL PERFIL
     public function actualizarPerfil(Request $request, $correo)
     {
+        $this->autorizarPropietario($request, $correo);
         $usuario = User::where('correo', $correo)->first();
 
         if (!$usuario) {
@@ -90,6 +97,7 @@ class PerfilControlador extends Controller
     // 3. SUBIR / ACTUALIZAR FOTO DE PERFIL
     public function actualizarFoto(Request $request, $correo)
     {
+        $this->autorizarPropietario($request, $correo);
         $request->validate([
             'foto' => 'required|image|mimes:jpeg,png,jpg,webp|max:2048', // Máximo 2MB
         ]);
@@ -100,26 +108,35 @@ class PerfilControlador extends Controller
             return response()->json(['detail' => 'Usuario no encontrado'], 404);
         }
 
-        // Eliminar foto anterior si existe
-        if ($usuario->foto && Storage::disk('public')->exists($usuario->foto)) {
-            Storage::disk('public')->delete($usuario->foto);
+        $diskName = config('filesystems.profile_disk', 'public');
+        $disk = Storage::disk($diskName);
+        $rutaAnterior = $usuario->foto;
+        $rutaFoto = $request->file('foto')->storePublicly('perfiles', $diskName);
+        if (!$rutaFoto) {
+            return response()->json(['detail' => 'No se pudo escribir la imagen en el almacenamiento.'], 500);
         }
 
-        // Guardar la nueva foto en storage/app/public/perfiles
-        $rutaFoto = $request->file('foto')->store('perfiles', 'public');
-
         $usuario->foto = $rutaFoto;
-        $usuario->save();
+        if (!$usuario->save()) {
+            $disk->delete($rutaFoto);
+            return response()->json(['detail' => 'No se pudo actualizar el perfil con la nueva imagen.'], 500);
+        }
+
+        // La foto anterior se elimina solo después de confirmar el guardado nuevo.
+        if ($rutaAnterior && $rutaAnterior !== $rutaFoto && $disk->exists($rutaAnterior)) {
+            $disk->delete($rutaAnterior);
+        }
 
         return response()->json([
             'mensaje' => 'Foto de perfil actualizada correctamente',
-            'foto'    => asset('storage/' . $rutaFoto)
+            'foto'    => $disk->url($rutaFoto)
         ], 200);
     }
 
     // 4. ELIMINAR CUENTA DE USUARIO
     public function eliminarCuenta(Request $request, $correo)
     {
+        $this->autorizarPropietario($request, $correo);
         $usuario = User::where('correo', $correo)->first();
 
         if (!$usuario) {
@@ -127,8 +144,9 @@ class PerfilControlador extends Controller
         }
 
         // Eliminar foto del servidor si tiene
-        if ($usuario->foto && Storage::disk('public')->exists($usuario->foto)) {
-            Storage::disk('public')->delete($usuario->foto);
+        $disk = Storage::disk(config('filesystems.profile_disk', 'public'));
+        if ($usuario->foto && $disk->exists($usuario->foto)) {
+            $disk->delete($usuario->foto);
         }
 
         // Eliminar usuario de la base de datos

@@ -2,6 +2,9 @@
 
 return [
 
+    // Set to "s3" in production when profile images must survive container restarts.
+    'profile_disk' => env('PROFILE_STORAGE_DISK', 'public'),
+
     /*
     |--------------------------------------------------------------------------
     | Default Filesystem Disk
