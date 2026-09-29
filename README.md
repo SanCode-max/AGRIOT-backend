@@ -15,7 +15,7 @@ Configura `BREVO_API_KEY` y `MAIL_FROM_ADDRESS` / `MAIL_FROM_NAME` en el entorno
 
 Rutas añadidas:
 
-- `POST /api/admin/users` (Bearer Sanctum, administrador): `nombre`, `apellido`, `correo`, `rol` (`admin` o `user`). Crea contraseña temporal y la envía por Brevo.
+- `POST /api/admin/users` (Bearer Sanctum, administrador): `nombre`, `apellido`, `correo`. Crea un operario con contraseña temporal y la envía por Brevo.
 - `PUT /api/admin/users/{user}/cultivos` (Bearer Sanctum, administrador): `cultivo_ids: number[]` reasigna cultivos al usuario indicado.
 - `POST /api/password/change-initial` (Bearer Sanctum): `password_actual`, `password`, `password_confirmation`.
 - `GET /api/usuario/dashboard` (Bearer Sanctum): devuelve únicamente cultivos del usuario autenticado.

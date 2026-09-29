@@ -29,12 +29,13 @@ class UserController extends Controller
             'nombre' => ['required', 'string', 'max:100'],
             'apellido' => ['required', 'string', 'max:100'],
             'correo' => ['required', 'email', 'max:150', 'unique:users,correo'],
-            'rol' => ['required', 'in:admin,user'],
+            'rol' => ['sometimes', 'in:user'],
         ]);
 
         $temporaryPassword = Str::password(16, symbols: true);
         $user = User::create([
             ...$data,
+            'rol' => 'user',
             'password' => Hash::make($temporaryPassword),
             'must_change_password' => true,
         ]);
