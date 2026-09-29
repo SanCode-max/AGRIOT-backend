@@ -7,6 +7,7 @@ use App\Http\Controllers\UserController;
 use App\Http\Controllers\UsuarioDashboardController;
 use App\Http\Controllers\CultivoController;
 use App\Http\Controllers\NutritionalCalculatorController;
+use App\Http\Controllers\AgendaController;
 
 Route::post('/registro', [AuthControlador::class, 'registro']);
 Route::post('/login', [AuthControlador::class, 'login']);
@@ -27,6 +28,16 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/cultivos/mapa', [CultivoController::class, 'mapa']);
         Route::get('/cultivos/{id}', [CultivoController::class, 'show'])->whereNumber('id');
         Route::post('/calculadora-nutricional', [NutritionalCalculatorController::class, 'calculate']);
+        Route::prefix('agenda')->controller(AgendaController::class)->group(function () {
+            Route::get('/eventos', 'eventos');
+            Route::post('/eventos', 'crearEvento');
+            Route::put('/eventos/{id}', 'actualizarEvento')->whereNumber('id');
+            Route::delete('/eventos/{id}', 'eliminarEvento')->whereNumber('id');
+            Route::get('/notas', 'notas');
+            Route::post('/notas', 'crearNota');
+            Route::put('/notas/{id}', 'actualizarNota')->whereNumber('id');
+            Route::delete('/notas/{id}', 'eliminarNota')->whereNumber('id');
+        });
         Route::middleware('role.crop-manager')->group(function () {
             Route::get('/admin/usuarios', [CultivoController::class, 'usuariosAsignables']);
             Route::post('/cultivos', [CultivoController::class, 'store']);

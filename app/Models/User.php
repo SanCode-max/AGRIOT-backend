@@ -43,4 +43,14 @@ class User extends Authenticatable
     {
         return $this->hasMany(Cultivo::class);
     }
+
+    public function eventosCalendario()
+    {
+        return $this->hasMany(EventoCalendario::class);
+    }
+
+    public function notas()
+    {
+        return $this->hasMany(Nota::class);
+    }
 }
