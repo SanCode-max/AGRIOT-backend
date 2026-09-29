@@ -9,7 +9,7 @@ class Cultivo extends Model
     protected $table = 'cultivos';
 
     protected $fillable = [
-        'user_id', 'nombre', 'device_id', 'fecha_siembra', 'fecha_estimada_cosecha', 'fecha_cosecha', 'estado_actual', 'estado',
+        'user_id', 'nombre', 'variedad', 'device_id', 'fecha_siembra', 'fecha_estimada_cosecha', 'fecha_cosecha', 'estado_actual', 'estado',
         'ubicacion', 'observaciones', 'latitud', 'longitud',
     ];
 

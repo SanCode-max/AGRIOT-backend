@@ -19,6 +19,7 @@ class CultivoController extends Controller
         return [
             'id' => $cultivo->id,
             'nombre' => $cultivo->nombre,
+            'variedad' => $cultivo->variedad ?: 'Arándano',
             'user_id' => $cultivo->user_id,
             'usuario' => $cultivo->user ? trim($cultivo->user->nombre.' '.$cultivo->user->apellido) : null,
             'device_id' => $cultivo->device_id,
@@ -27,6 +28,8 @@ class CultivoController extends Controller
             'estado_actual' => $cultivo->estado_actual ?? $cultivo->estado,
             'ubicacion' => $cultivo->ubicacion,
             'observaciones' => $cultivo->observaciones,
+            'latitud' => $cultivo->latitud,
+            'longitud' => $cultivo->longitud,
         ];
     }
 
@@ -44,6 +47,7 @@ class CultivoController extends Controller
     {
         $data = $request->validate([
             'nombre' => ['required', 'string', 'max:150'],
+            'variedad' => ['nullable', 'string', 'max:120'],
             'user_id' => ['required', 'integer', Rule::exists('users', 'id')->where('rol', 'user')],
             'device_id' => ['required', 'string', 'max:120', 'unique:cultivos,device_id'],
             'fecha_siembra' => ['required', 'date'],
@@ -51,6 +55,8 @@ class CultivoController extends Controller
             'estado_actual' => ['required', 'string', Rule::in(['Vegetativo', 'Floración', 'Fructificación', 'Cosecha', 'Descanso', 'Otro'])],
             'ubicacion' => ['required', 'string', 'max:255'],
             'observaciones' => ['nullable', 'string', 'max:5000'],
+            'latitud' => ['nullable', 'numeric', 'between:-90,90', 'required_with:longitud'],
+            'longitud' => ['nullable', 'numeric', 'between:-180,180', 'required_with:latitud'],
         ]);
 
         $cultivo = Cultivo::create([
@@ -72,6 +78,18 @@ class CultivoController extends Controller
         $cultivo = $query->firstOrFail();
 
         return response()->json(['cultivo' => $this->formato($cultivo)]);
+    }
+
+    public function mapa(Request $request)
+    {
+        $query = Cultivo::with('user')->whereNotNull('latitud')->whereNotNull('longitud')->orderBy('nombre');
+        if (!$this->puedeVerTodos($request->user())) {
+            $query->where('user_id', $request->user()->id);
+        }
+
+        return response()->json([
+            'cultivos' => $query->get()->map(fn (Cultivo $cultivo) => $this->formato($cultivo)),
+        ]);
     }
 
     public function usuariosAsignables()

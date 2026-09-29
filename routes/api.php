@@ -17,6 +17,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthControlador::class, 'logout']);
     Route::middleware('password.changed')->group(function () {
         Route::get('/cultivos', [CultivoController::class, 'index']);
+        Route::get('/cultivos/mapa', [CultivoController::class, 'mapa']);
         Route::get('/cultivos/{id}', [CultivoController::class, 'show'])->whereNumber('id');
         Route::middleware('role.crop-manager')->group(function () {
             Route::get('/admin/usuarios', [CultivoController::class, 'usuariosAsignables']);
