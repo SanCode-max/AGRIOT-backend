@@ -5,6 +5,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\PerfilControlador;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\UsuarioDashboardController;
+use App\Http\Controllers\CultivoController;
 
 Route::post('/registro', [AuthControlador::class, 'registro']);
 Route::post('/login', [AuthControlador::class, 'login']);
@@ -15,6 +16,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/password/change-initial', [AuthControlador::class, 'cambiarPasswordInicial']);
     Route::post('/logout', [AuthControlador::class, 'logout']);
     Route::middleware('password.changed')->group(function () {
+        Route::get('/cultivos', [CultivoController::class, 'index']);
+        Route::get('/cultivos/{id}', [CultivoController::class, 'show'])->whereNumber('id');
+        Route::middleware('role.crop-manager')->group(function () {
+            Route::get('/admin/usuarios', [CultivoController::class, 'usuariosAsignables']);
+            Route::post('/cultivos', [CultivoController::class, 'store']);
+        });
         Route::middleware('role.admin')->post('/admin/users', [UserController::class, 'store']);
         Route::middleware('role.admin')->put('/admin/users/{user}/cultivos', [UserController::class, 'assignCultivos']);
         Route::get('/usuario/dashboard', [UsuarioDashboardController::class, 'show']);

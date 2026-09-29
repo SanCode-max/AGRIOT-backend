@@ -5,6 +5,7 @@ use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use App\Http\Middleware\EnsureUserPasswordChanged;
 use App\Http\Middleware\EnsureAdminRole;
+use App\Http\Middleware\EnsureAdminOrAssistantRole;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -17,6 +18,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'password.changed' => EnsureUserPasswordChanged::class,
             'role.admin' => EnsureAdminRole::class,
+            'role.crop-manager' => EnsureAdminOrAssistantRole::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

@@ -9,13 +9,13 @@ class Cultivo extends Model
     protected $table = 'cultivos';
 
     protected $fillable = [
-        'user_id', 'nombre', 'fecha_siembra', 'fecha_cosecha', 'estado',
+        'user_id', 'nombre', 'device_id', 'fecha_siembra', 'fecha_estimada_cosecha', 'fecha_cosecha', 'estado_actual', 'estado',
         'ubicacion', 'observaciones', 'latitud', 'longitud',
     ];
 
     protected function casts(): array
     {
-        return ['fecha_siembra' => 'date:Y-m-d', 'fecha_cosecha' => 'date:Y-m-d'];
+        return ['fecha_siembra' => 'date:Y-m-d', 'fecha_estimada_cosecha' => 'date:Y-m-d', 'fecha_cosecha' => 'date:Y-m-d'];
     }
 
     public function user()

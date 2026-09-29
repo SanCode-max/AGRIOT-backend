@@ -20,8 +20,11 @@ Rutas añadidas:
 - `POST /api/password/change-initial` (Bearer Sanctum): `password_actual`, `password`, `password_confirmation`.
 - `GET /api/usuario/dashboard` (Bearer Sanctum): devuelve únicamente cultivos del usuario autenticado.
 - `POST /api/logout` (Bearer Sanctum): revoca el token actual.
+- `GET /api/cultivos` y `GET /api/cultivos/{id}` (Bearer Sanctum): filtran automáticamente por usuario para `user`; `admin` y `asistente` pueden consultar todos.
+- `POST /api/cultivos` (Bearer Sanctum, `admin` o `asistente`): crea un cultivo con `nombre`, `user_id`, `device_id`, `fecha_siembra`, `fecha_estimada_cosecha`, `estado_actual`, `ubicacion` y `observaciones`.
+- `GET /api/admin/usuarios` (Bearer Sanctum, `admin` o `asistente`): lista operarios para el formulario de asignación.
 
-En React están las rutas `/admin/usuarios`, `/cambiar-password` y `/dashboard/usuario`. Define `REACT_APP_API_BASE_URL` en el frontend si la API no está en el host predeterminado.
+En React están las rutas `/admin/usuarios`, `/cambiar-password`, `/dashboard/usuario` y `/cultivos/:id`. Define `REACT_APP_API_BASE_URL` en el frontend si la API no está en el host predeterminado. La sub-dashboard simula las lecturas del nodo hasta integrar el hardware.
 
 Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
 
