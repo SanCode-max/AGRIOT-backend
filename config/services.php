@@ -2,6 +2,10 @@
 
 return [
 
+    'iot' => [
+        'ingest_token' => env('IOT_INGEST_TOKEN'),
+    ],
+
     'brevo' => [
         'key' => env('BREVO_API_KEY'),
     ],

@@ -8,6 +8,9 @@ use App\Http\Controllers\UsuarioDashboardController;
 use App\Http\Controllers\CultivoController;
 use App\Http\Controllers\NutritionalCalculatorController;
 use App\Http\Controllers\AgendaController;
+use App\Http\Controllers\TelemetriaController;
+
+Route::post('/v1/telemetria', [TelemetriaController::class, 'store'])->middleware('throttle:120,1');
 
 Route::post('/registro', [AuthControlador::class, 'registro']);
 Route::post('/login', [AuthControlador::class, 'login']);
@@ -27,6 +30,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/cultivos', [CultivoController::class, 'index']);
         Route::get('/cultivos/mapa', [CultivoController::class, 'mapa']);
         Route::get('/cultivos/{id}', [CultivoController::class, 'show'])->whereNumber('id');
+        Route::get('/v1/cultivos/{id}/telemetria', [TelemetriaController::class, 'index'])->whereNumber('id')->middleware('throttle:120,1');
         Route::post('/calculadora-nutricional', [NutritionalCalculatorController::class, 'calculate']);
         Route::prefix('agenda')->controller(AgendaController::class)->group(function () {
             Route::get('/eventos', 'eventos');
