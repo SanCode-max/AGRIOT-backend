@@ -19,6 +19,8 @@ class NutritionalCalculatorController extends Controller
             'p' => ['required', 'numeric', 'min:0', 'max:100000'],
             'k' => ['required', 'numeric', 'min:0', 'max:100000'],
             'humedad_suelo' => ['nullable', 'numeric', 'between:0,100'],
+            'temperatura_suelo' => ['nullable', 'numeric', 'between:-55,125'],
+            'conductividad_electrica' => ['nullable', 'numeric', 'between:0,20'],
             'agua_litros' => ['required', 'numeric', 'gt:0', 'max:10000000'],
             'fertilizantes.n_percent' => ['required', 'numeric', 'gt:0', 'max:100'],
             'fertilizantes.p2o5_percent' => ['required', 'numeric', 'gt:0', 'max:100'],
@@ -61,6 +63,12 @@ class NutritionalCalculatorController extends Controller
         $acidRate = isset($data['acido_ml_litro_titulado']) ? (float) $data['acido_ml_litro_titulado'] : null;
         $acidNeeded = $ph > $config['ph']['max'] && $acidRate !== null;
         $moisture = isset($data['humedad_suelo']) ? (float) $data['humedad_suelo'] : null;
+        $soilTemperature = isset($data['temperatura_suelo']) ? (float) $data['temperatura_suelo'] : null;
+        $conductivity = isset($data['conductividad_electrica']) ? (float) $data['conductividad_electrica'] : null;
+        $ecThresholds = $config['electrical_conductivity'];
+        $ecStatus = $conductivity === null ? null
+            : ($conductivity >= $ecThresholds['high_ds_m'] ? 'alta'
+                : ($conductivity >= $ecThresholds['elevated_ds_m'] ? 'elevada' : 'referencia'));
 
         $alerts = [];
         if ($ph > $config['ph']['max']) {
@@ -75,6 +83,30 @@ class NutritionalCalculatorController extends Controller
         foreach ($nutrients as $symbol => $result) {
             if ($result['estado'] === 'excesivo') $alerts[] = strtoupper($symbol).' supera el objetivo; no añadas su fertilizante hasta validar la lectura.';
         }
+        if ($conductivity !== null && $ecStatus !== 'referencia') {
+            $alerts[] = 'La CE está elevada para una referencia inicial de arándano. Confirma unidades y método de extracción antes de ajustar fertilización.';
+        }
+        if ($soilTemperature !== null && $soilTemperature < $config['temperature']['low_c']) {
+            $alerts[] = 'Temperatura radicular baja: confirma el sensor y revisa el riesgo de helada según la etapa fenológica.';
+        } elseif ($soilTemperature !== null && $soilTemperature > $config['temperature']['high_c']) {
+            $alerts[] = 'Temperatura radicular alta: revisa humedad, cobertura del sustrato y horario de riego.';
+        }
+
+        $recommendations = [];
+        if ($ph > $config['ph']['max']) $recommendations[] = $acidRate === null
+            ? 'Realice una titulación del agua antes de acidificar; confirme pH y alcalinidad con una muestra representativa.'
+            : 'Aplique el corrector titulado de forma gradual y verifique el pH de la solución antes del riego.';
+        if ($ph < $config['ph']['min']) $recommendations[] = 'Confirme pH y alcalinidad; no agregue ácido y revise el plan de fertilización acidificante.';
+        if ($moisture !== null && $moisture < $config['moisture']['low']) $recommendations[] = 'Confirma la humedad en la zona radicular y el caudal de los emisores; si hay déficit, aplica riego en pulsos controlados y vuelve a medir.';
+        if ($moisture !== null && $moisture > $config['moisture']['excess']) $recommendations[] = 'Revisa drenaje y uniformidad; ajusta el siguiente ciclo solo tras confirmar que la zona radicular permanece saturada.';
+        if ($conductivity !== null && $ecStatus !== 'referencia') $recommendations[] = 'Verifica la CE con el mismo método de muestreo y analiza agua/sustrato; evita aumentar fertilizantes hasta descartar acumulación de sales.';
+        if ($soilTemperature !== null && $soilTemperature < $config['temperature']['low_c']) $recommendations[] = 'Confirma la temperatura radicular y aplica medidas de protección frente a heladas apropiadas para la etapa y el lote.';
+        if ($soilTemperature !== null && $soilTemperature > $config['temperature']['high_c']) $recommendations[] = 'Confirma la lectura, protege el sustrato del calentamiento y programa riego en horas frescas si la humedad lo requiere.';
+        foreach ($nutrients as $symbol => $result) {
+            if ($result['estado'] === 'deficiente') $recommendations[] = strtoupper($symbol).' está por debajo del objetivo estimado; confirme unidades y análisis antes de fraccionar una corrección de fertirriego.';
+            if ($result['estado'] === 'excesivo') $recommendations[] = strtoupper($symbol).' supera el objetivo estimado; suspenda aportes adicionales de ese nutriente hasta validar la medición.';
+        }
+        if (!$recommendations) $recommendations[] = 'Mantén el monitoreo y ajusta el fertirriego según análisis de agua, sustrato y respuesta del cultivo.';
 
         return response()->json([
             'cultivo' => ['id' => $cultivo->id, 'nombre' => $cultivo->nombre, 'device_id' => $cultivo->device_id],
@@ -97,6 +129,19 @@ class NutritionalCalculatorController extends Controller
                     : ($moisture > $config['moisture']['excess'] ? 'excesiva'
                     : ($moisture > $config['moisture']['high'] ? 'alta' : 'optima')),
             ],
+            'temperatura_suelo' => $soilTemperature === null ? null : [
+                'actual_c' => $soilTemperature,
+                'estado' => $soilTemperature < $config['temperature']['low_c'] ? 'baja'
+                    : ($soilTemperature > $config['temperature']['high_c'] ? 'alta' : 'referencia'),
+                'umbrales_referencia_c' => [$config['temperature']['low_c'], $config['temperature']['high_c']],
+            ],
+            'conductividad_electrica' => $conductivity === null ? null : [
+                'actual_ds_m' => $conductivity,
+                'estado' => $ecStatus,
+                'umbral_elevado_ds_m' => $ecThresholds['elevated_ds_m'],
+                'umbral_alto_ds_m' => $ecThresholds['high_ds_m'],
+                'nota' => 'Los umbrales dependen del método de muestreo; valide con análisis de agua/sustrato del lote.',
+            ],
             'agua_litros' => $volume,
             'dosis' => [
                 'n_g' => $nutrients['n']['fertilizante_g'],
@@ -106,6 +151,7 @@ class NutritionalCalculatorController extends Controller
                 'nota' => 'Equivalentes de productos separados calculados desde el análisis de etiqueta; no mezclar estas cantidades sin revisar compatibilidad y balance.',
             ],
             'alertas' => $alerts,
+            'recomendaciones' => $recommendations,
             'base_referencia_mg_l' => $config['base_targets_mg_l'],
             'aviso_agronomico' => 'Estimación inicial semiprofesional. Verifica con análisis de agua, sustrato y tejido, y calibra los objetivos de la finca antes de aplicar.',
         ]);

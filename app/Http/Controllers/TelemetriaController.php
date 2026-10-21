@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Cultivo;
 use App\Models\Telemetria;
+use App\Services\TelemetryAlertService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 
@@ -47,6 +48,7 @@ class TelemetriaController extends Controller
             'observed_at' => $observedAt,
             'payload' => $request->except(['token']),
         ]);
+        app(TelemetryAlertService::class)->evaluate($telemetria, $cultivo);
 
         return response()->json([
             'mensaje' => 'Telemetría almacenada.',

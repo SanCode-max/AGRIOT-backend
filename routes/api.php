@@ -9,6 +9,7 @@ use App\Http\Controllers\CultivoController;
 use App\Http\Controllers\NutritionalCalculatorController;
 use App\Http\Controllers\AgendaController;
 use App\Http\Controllers\TelemetriaController;
+use App\Http\Controllers\AlertaController;
 
 // ESP32 authenticates with X-Ingest-Token in the controller, not with a user session.
 Route::post('/v1/telemetria', [TelemetriaController::class, 'store'])->middleware('throttle:120,1');
@@ -32,6 +33,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/cultivos/mapa', [CultivoController::class, 'mapa']);
         Route::get('/cultivos/{id}', [CultivoController::class, 'show'])->whereNumber('id');
         Route::get('/v1/cultivos/{id}/telemetria', [TelemetriaController::class, 'index'])->whereNumber('id')->middleware('throttle:120,1');
+        Route::get('/alertas', [AlertaController::class, 'index']);
+        Route::patch('/alertas/{id}/revisar', [AlertaController::class, 'revisar'])->whereNumber('id');
         Route::post('/calculadora-nutricional', [NutritionalCalculatorController::class, 'calculate']);
         Route::prefix('agenda')->controller(AgendaController::class)->group(function () {
             Route::get('/eventos', 'eventos');

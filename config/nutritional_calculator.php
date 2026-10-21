@@ -8,6 +8,15 @@
 return [
     'ph' => ['min' => 4.5, 'max' => 5.5, 'target' => 5.2],
     'moisture' => ['low' => 40, 'high' => 80, 'excess' => 85],
+    // Initial alert/reference limits; tune against the farm's sensor placement and measurement method.
+    'temperature' => ['low_c' => 8, 'high_c' => 25],
+    'electrical_conductivity' => ['elevated_ds_m' => 1.5, 'high_ds_m' => 2.0],
+    'alerts' => [
+        'moisture_low_pct' => 40,
+        'moisture_high_pct' => 85,
+        'temperature_low_c' => 8,
+        'temperature_high_c' => 25,
+    ],
     'npk_tolerance_percent' => 10,
     // Referencia inicial de solución nutritiva. Coeficientes por etapa editables.
     'base_targets_mg_l' => ['n' => 39.0, 'p' => 12.0, 'k' => 79.0],
