@@ -10,6 +10,7 @@ use App\Http\Controllers\NutritionalCalculatorController;
 use App\Http\Controllers\AgendaController;
 use App\Http\Controllers\TelemetriaController;
 
+// ESP32 authenticates with X-Ingest-Token in the controller, not with a user session.
 Route::post('/v1/telemetria', [TelemetriaController::class, 'store'])->middleware('throttle:120,1');
 
 Route::post('/registro', [AuthControlador::class, 'registro']);

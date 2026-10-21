@@ -6,7 +6,6 @@ use App\Models\Cultivo;
 use App\Models\Telemetria;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class TelemetriaController extends Controller
@@ -14,8 +13,15 @@ class TelemetriaController extends Controller
     public function store(Request $request)
     {
         $secret = (string) config('services.iot.ingest_token');
-        $provided = (string) $request->bearerToken();
-        abort_unless($secret !== '' && hash_equals($secret, $provided), 401, 'Credenciales IoT inválidas.');
+        $provided = (string) $request->header('X-Ingest-Token', '');
+
+        if ($secret === '' || $provided === '' || !hash_equals($secret, $provided)) {
+            return response()->json([
+                'ok' => false,
+                'error' => 'unauthorized',
+                'mensaje' => 'Token de ingestión IoT inválido o no configurado.',
+            ], 401);
+        }
 
         $data = $request->validate([
             'device_id' => ['required', 'string', 'max:120'],
