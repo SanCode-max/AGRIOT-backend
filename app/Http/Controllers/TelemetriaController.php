@@ -6,7 +6,6 @@ use App\Models\Cultivo;
 use App\Models\Telemetria;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
-use Illuminate\Validation\ValidationException;
 
 class TelemetriaController extends Controller
 {
@@ -21,21 +20,19 @@ class TelemetriaController extends Controller
 
         $data = $request->validate([
             'device_id' => ['required', 'string', 'max:120'],
-            'temperatura_suelo_C' => ['nullable', 'numeric', 'between:-55,125', 'required_without_all:humedad_relativa_calibrada_pct,humedad_suelo_pct'],
+            'temperatura_suelo_C' => ['nullable', 'numeric', 'between:-55,125'],
             'humedad_relativa_calibrada_pct' => ['nullable', 'numeric', 'between:0,100'],
             'humedad_suelo_pct' => ['nullable', 'numeric', 'between:0,100'],
             'timestamp' => ['nullable', 'date'],
         ]);
 
+        // Persist readings even if an administrator has not linked this device to a crop yet.
         $cultivo = Cultivo::where('device_id', $data['device_id'])->first();
-        if (!$cultivo) {
-            throw ValidationException::withMessages(['device_id' => 'No existe un cultivo asociado a este dispositivo.']);
-        }
 
         $observedAt = isset($data['timestamp']) ? Carbon::parse($data['timestamp']) : now();
         $humidity = $data['humedad_relativa_calibrada_pct'] ?? $data['humedad_suelo_pct'] ?? null;
         $telemetria = Telemetria::create([
-            'cultivo_id' => $cultivo->id,
+            'cultivo_id' => $cultivo?->id,
             'device_id' => $data['device_id'],
             'temperatura_suelo_C' => $data['temperatura_suelo_C'] ?? null,
             'humedad_relativa_calibrada_pct' => $humidity,
@@ -43,7 +40,11 @@ class TelemetriaController extends Controller
             'payload' => $request->except(['token']),
         ]);
 
-        return response()->json(['mensaje' => 'Telemetría almacenada.', 'telemetria' => $telemetria], 201);
+        return response()->json([
+            'mensaje' => 'Telemetría almacenada.',
+            'asociada_a_cultivo' => $cultivo !== null,
+            'telemetria' => $telemetria,
+        ], 201);
     }
 
     public function index(Request $request, int $id)
@@ -60,7 +61,12 @@ class TelemetriaController extends Controller
             'limit' => ['nullable', 'integer', 'min:1', 'max:1000'],
         ]);
         $limit = (int) ($validated['limit'] ?? 500);
-        $rows = Telemetria::where('cultivo_id', $cultivo->id)
+        $rows = Telemetria::where(function ($query) use ($cultivo) {
+            $query->where('cultivo_id', $cultivo->id);
+            if ($cultivo->device_id) {
+                $query->orWhere('device_id', $cultivo->device_id);
+            }
+        })
             ->when(isset($validated['desde']), fn ($q) => $q->where('observed_at', '>=', $validated['desde']))
             ->when(isset($validated['hasta']), fn ($q) => $q->where('observed_at', '<=', $validated['hasta']))
             ->orderByDesc('observed_at')->limit($limit)->get()->reverse()->values();
