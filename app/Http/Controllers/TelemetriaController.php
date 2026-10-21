@@ -16,11 +16,7 @@ class TelemetriaController extends Controller
         $provided = (string) $request->header('X-Ingest-Token', '');
 
         if ($secret === '' || $provided === '' || !hash_equals($secret, $provided)) {
-            return response()->json([
-                'ok' => false,
-                'error' => 'unauthorized',
-                'mensaje' => 'Token de ingestión IoT inválido o no configurado.',
-            ], 401);
+            return response()->json(['error' => 'No autorizado'], 401);
         }
 
         $data = $request->validate([
