@@ -67,12 +67,27 @@ class TelemetriaController extends Controller
             'desde' => ['nullable', 'date'],
             'hasta' => ['nullable', 'date', 'after_or_equal:desde'],
             'limit' => ['nullable', 'integer', 'min:1', 'max:1000'],
+            'device_id' => ['nullable', 'string', 'max:120'],
         ]);
         $limit = (int) ($validated['limit'] ?? 500);
-        $rows = Telemetria::where(function ($query) use ($cultivo) {
+        $deviceId = $validated['device_id'] ?? $cultivo->device_id;
+
+        // A user may request an unassigned device for a crop they can access,
+        // but cannot read a device already linked to another user's crop.
+        $deviceCultivo = $deviceId ? Cultivo::where('device_id', $deviceId)->first() : null;
+        if (
+            $deviceCultivo
+            && $deviceCultivo->id !== $cultivo->id
+            && !in_array($request->user()->rol, ['admin', 'asistente'], true)
+            && $deviceCultivo->user_id !== $request->user()->id
+        ) {
+            abort(404);
+        }
+
+        $rows = Telemetria::where(function ($query) use ($cultivo, $deviceId) {
             $query->where('cultivo_id', $cultivo->id);
-            if ($cultivo->device_id) {
-                $query->orWhere('device_id', $cultivo->device_id);
+            if ($deviceId) {
+                $query->orWhere('device_id', $deviceId);
             }
         })
             ->when(isset($validated['desde']), fn ($q) => $q->where('observed_at', '>=', $validated['desde']))
@@ -81,6 +96,7 @@ class TelemetriaController extends Controller
 
         return response()->json([
             'cultivo' => ['id' => $cultivo->id, 'nombre' => $cultivo->nombre, 'device_id' => $cultivo->device_id],
+            'device_id_consultado' => $deviceId,
             'telemetria' => $rows,
             'actualizado_en' => now()->toIso8601String(),
         ]);
