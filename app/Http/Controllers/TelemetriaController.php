@@ -29,7 +29,15 @@ class TelemetriaController extends Controller
         // Persist readings even if an administrator has not linked this device to a crop yet.
         $cultivo = Cultivo::where('device_id', $data['device_id'])->first();
 
-        $observedAt = isset($data['timestamp']) ? Carbon::parse($data['timestamp']) : now();
+        $observedAt = isset($data['timestamp'])
+            ? Carbon::parse($data['timestamp'])->utc()
+            : now()->utc();
+
+        // The ESP32 uses the Unix epoch as a placeholder when NTP has not synced.
+        // Do not persist that sentinel as a sensor observation; use server UTC instead.
+        if ($observedAt->lessThanOrEqualTo(Carbon::createFromTimestampUTC(0))) {
+            $observedAt = now()->utc();
+        }
         $humidity = $data['humedad_relativa_calibrada_pct'] ?? $data['humedad_suelo_pct'] ?? null;
         $telemetria = Telemetria::create([
             'cultivo_id' => $cultivo?->id,
