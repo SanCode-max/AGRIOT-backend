@@ -34,10 +34,6 @@ class PerfilControlador extends Controller
             'profesion'           => $usuario->profesion ?? 'Agricultor',
             'ubicacion'           => $usuario->ubicacion ?? 'Ubaté, Cundinamarca',
             'foto'                => $usuario->foto ? Storage::disk(config('filesystems.profile_disk', 'public'))->url($usuario->foto) : null,
-            'ultima_sesion'       => 'Hoy',
-            'proyectos_asignados' => 2,
-            'cultivos_seguimiento'=> 3,
-            'estabilidad'         => 75 
         ], 200);
     }
 
