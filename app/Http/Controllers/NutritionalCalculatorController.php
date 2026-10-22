@@ -25,7 +25,12 @@ class NutritionalCalculatorController extends Controller
             'fertilizantes.n_percent' => ['required', 'numeric', 'gt:0', 'max:100'],
             'fertilizantes.p2o5_percent' => ['required', 'numeric', 'gt:0', 'max:100'],
             'fertilizantes.k2o_percent' => ['required', 'numeric', 'gt:0', 'max:100'],
+            'fertilizantes.n_producto' => ['nullable', 'string', 'max:100'],
+            'fertilizantes.p_producto' => ['nullable', 'string', 'max:100'],
+            'fertilizantes.k_producto' => ['nullable', 'string', 'max:100'],
             'acido_ml_litro_titulado' => ['nullable', 'numeric', 'min:0', 'max:1000'],
+            'acido_tipo' => ['required_with:acido_ml_litro_titulado', 'nullable', Rule::in(['fosforico', 'nitrico'])],
+            'acido_concentracion_pct' => ['required_with:acido_ml_litro_titulado', 'nullable', 'numeric', 'gt:0', 'max:100'],
         ]);
 
         $user = $request->user();
@@ -57,6 +62,15 @@ class NutritionalCalculatorController extends Controller
                 'fertilizante_g' => round(max(0, $target - $current) * $volume / (1000 * $fertilizerFractions[$nutrient]), 2),
             ];
         }
+
+        $fertilizerTotalGrams = array_sum(array_map(
+            fn (string $nutrient) => $nutrients[$nutrient]['fertilizante_g'],
+            ['n', 'p', 'k']
+        ));
+        $ecInitial = isset($data['conductividad_electrica']) ? (float) $data['conductividad_electrica'] : null;
+        $ecFactor = (float) $config['ec_tds_factor_mg_l_per_ds_m'];
+        $ecIncrement = round((($fertilizerTotalGrams / $volume) * 1000) / $ecFactor, 2);
+        $ecEstimated = $ecInitial === null ? null : round($ecInitial + $ecIncrement, 2);
 
         $ph = (float) $data['ph'];
         $phStatus = $ph < $config['ph']['min'] ? 'bajo' : ($ph > $config['ph']['max'] ? 'alto' : 'optimo');
@@ -116,10 +130,12 @@ class NutritionalCalculatorController extends Controller
                 'objetivo' => [$config['ph']['min'], $config['ph']['max']],
                 'estado' => $phStatus,
                 'corrector' => $acidNeeded ? [
-                    'tipo' => 'Ácido definido y titulado por el usuario',
+                    'tipo' => $data['acido_tipo'] ?? null,
+                    'concentracion_pct' => isset($data['acido_concentracion_pct']) ? (float) $data['acido_concentracion_pct'] : null,
                     'ml_por_litro_titulado' => $acidRate,
                     'cantidad_ml' => round($acidRate * $volume, 2),
                 ] : null,
+                'ph_objetivo' => $config['ph']['target'],
                 'requiere_titulacion' => $ph > $config['ph']['max'] && $acidRate === null,
             ],
             'nutrientes' => $nutrients,
@@ -142,13 +158,25 @@ class NutritionalCalculatorController extends Controller
                 'umbral_alto_ds_m' => $ecThresholds['high_ds_m'],
                 'nota' => 'Los umbrales dependen del método de muestreo; valide con análisis de agua/sustrato del lote.',
             ],
+            'ce_estimada' => [
+                'ce_inicial_ds_m' => $ecInitial,
+                'aporte_fertilizantes_ds_m' => $ecIncrement,
+                'resultado_ds_m' => $ecEstimated,
+                'metodo' => 'Aproximación TDS/CE (factor 640 mg/L por dS/m); confirme con conductímetro y solución preparada.',
+            ],
             'agua_litros' => $volume,
             'dosis' => [
                 'n_g' => $nutrients['n']['fertilizante_g'],
                 'p_g' => $nutrients['p']['fertilizante_g'],
                 'k_g' => $nutrients['k']['fertilizante_g'],
+                'productos' => [
+                    'n' => $data['fertilizantes']['n_producto'] ?? 'Fuente de N',
+                    'p' => $data['fertilizantes']['p_producto'] ?? 'Fuente de P₂O₅',
+                    'k' => $data['fertilizantes']['k_producto'] ?? 'Fuente de K₂O',
+                ],
+                'total_fertilizantes_g' => round($fertilizerTotalGrams, 2),
                 'formula' => 'g = max(objetivo - lectura, 0) mg/L × litros ÷ (1000 × fracción elemental del producto)',
-                'nota' => 'Equivalentes de productos separados calculados desde el análisis de etiqueta; no mezclar estas cantidades sin revisar compatibilidad y balance.',
+                'nota' => 'Equivalentes calculados por nutriente y por separado. El modelo no descuenta nutrientes secundarios aportados por MAP, nitrato de potasio u otros productos; revise compatibilidad y balance completo antes de aplicar.',
             ],
             'alertas' => $alerts,
             'recomendaciones' => $recommendations,

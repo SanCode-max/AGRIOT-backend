@@ -11,6 +11,8 @@ return [
     // Initial alert/reference limits; tune against the farm's sensor placement and measurement method.
     'temperature' => ['low_c' => 8, 'high_c' => 25],
     'electrical_conductivity' => ['elevated_ds_m' => 1.5, 'high_ds_m' => 2.0],
+    // Aproximación TDS/CE para orientar, no sustituye una lectura con conductímetro.
+    'ec_tds_factor_mg_l_per_ds_m' => 640,
     'alerts' => [
         'moisture_low_pct' => 40,
         'moisture_high_pct' => 85,
